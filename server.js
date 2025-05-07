@@ -21,5 +21,5 @@ return res.json({
 
 } catch (error) { console.error('Erro no pagamento M-Pesa:', error.message); return res.status(500).json({ status: 500, error: 'Erro interno M-Pesa' }); } });
 
-app.listen(PORT, () => { console.log(Servidor rodando na porta ${PORT}); });
+app.listen(PORT, () => { console.log(`Servidor rodando na porta ${PORT}`); });
 
