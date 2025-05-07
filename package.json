@@ -1,0 +1,16 @@
+{
+  "name": "bot-mines-backend",
+  "version": "1.0.0",
+  "description": "Backend para processamento de pagamentos do bot Mines via M-Pesa e eMola",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^0.27.2",
+    "body-parser": "^1.19.1",
+    "express": "^4.18.1"
+  }
+}
