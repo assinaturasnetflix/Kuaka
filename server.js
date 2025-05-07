@@ -1,183 +1,70 @@
 const express = require('express');
 const axios = require('axios');
-const cors = require('cors');
 const bodyParser = require('body-parser');
-const path = require('path');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const port = 3000;
 
-// Middleware
-// Configuração de CORS para permitir solicitações cross-origin
-app.use(cors({
-  origin: ['https://mines-payment.onrender.com', 'http://localhost:3000'], // Permitir solicitações do frontend no Render e localhost
-  methods: ['GET', 'POST'],
-  credentials: true
-}));
+// Middleware para parsing do corpo da requisição
 app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname, 'public')));
 
-// Carteira ID (constante definida de acordo com as especificações)
-const CARTEIRA_ID = "1746519798335x143095610732969980";
+// Rota para processar os pagamentos
+app.post('/process-payment', async (req, res) => {
+  const { numero, plano, metodoPagamento } = req.body;
 
-// Definições de planos
-const PLANOS = {
-  "7dias": 500,
-  "30dias": 1200
-};
-
-// Rota principal para a página inicial
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-// Endpoint de verificação de saúde do servidor
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'online',
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development',
-    version: '1.0.0'
-  });
-});
-
-// Rota para processar pagamentos M-Pesa
-app.post('/api/payment/mpesa', async (req, res) => {
-  try {
-    const { numero, nome, plano } = req.body;
-    
-    // Validação dos campos
-    if (!numero || !nome || !plano) {
-      return res.status(400).json({ success: false, message: 'Número, nome e plano são campos obrigatórios' });
-    }
-    
-    // Validação do plano
-    if (!PLANOS[plano]) {
-      return res.status(400).json({ success: false, message: 'Plano inválido' });
-    }
-    
-    const valor = PLANOS[plano];
-    
-    // Dados do pagamento
-    const paymentData = {
-      carteira: CARTEIRA_ID,
-      numero: numero,
-      "quem comprou": nome,
-      valor: valor.toString()
-    };
-    
-    console.log('Enviando requisição M-Pesa:', paymentData);
-    
-    // Requisição para a API do M-Pesa
-    const response = await axios.post(
-      'https://mozpayment.co.mz/api/1.1/wf/pagamentorotativompesa',
-      paymentData
-    );
-    
-    console.log('Resposta M-Pesa:', response.status, response.data);
-    
-    // Verificação da resposta
-    if (response.status === 200) {
-      // Construir URL para WhatsApp
-      const message = encodeURIComponent("Pagamento do bot Mines realizado com sucesso. Aproveite para ganhar dinheiro com o bot!");
-      const whatsappUrl = `https://wa.me/?text=${message}`;
-      
-      return res.status(200).json({
-        success: true,
-        message: 'Pagamento realizado com sucesso!',
-        whatsappUrl: whatsappUrl
-      });
-    } else {
-      let errorMessage = 'Erro ao processar o pagamento';
-      
-      // Mapear códigos de erro
-      if (response.status === 201) {
-        errorMessage = 'Erro na transação. Por favor, tente novamente.';
-      } else if (response.status === 422) {
-        errorMessage = 'Saldo insuficiente. Por favor, recarregue sua conta.';
-      } else if (response.status === 400) {
-        errorMessage = 'PIN errado. Por favor, verifique e tente novamente.';
-      }
-      
-      return res.status(response.status).json({
-        success: false,
-        message: errorMessage
-      });
-    }
-  } catch (error) {
-    console.error('Erro ao processar pagamento M-Pesa:', error);
-    
-    return res.status(500).json({
-      success: false,
-      message: 'Erro ao processar o pagamento: ' + (error.response?.data?.message || error.message)
-    });
+  // Verificar se todos os parâmetros necessários foram passados
+  if (!numero || !plano || !metodoPagamento) {
+    return res.status(400).json({ error: 'Todos os campos são obrigatórios' });
   }
-});
 
-// Rota para processar pagamentos eMola
-app.post('/api/payment/emola', async (req, res) => {
+  // Definir o valor do pagamento de acordo com o plano escolhido
+  let valor;
+  if (plano === '7dias') {
+    valor = 500;  // 500MT para 7 dias
+  } else if (plano === '30dias') {
+    valor = 1200;  // 1200MT para 30 dias
+  } else {
+    return res.status(400).json({ error: 'Plano inválido' });
+  }
+
+  // Dados para a requisição da API
+  const data = {
+    carteira: '1746519798335x143095610732969980',  // Carteira do bot
+    numero: numero,  // Número de telefone do usuário
+    "quem comprou": 'Usuário Bot Mines',  // Nome do comprador
+    valor: valor  // Valor a ser pago
+  };
+
+  // Enviar pagamento para M-Pesa ou eMola
   try {
-    const { numero, nome, plano } = req.body;
-    
-    // Validação dos campos
-    if (!numero || !nome || !plano) {
-      return res.status(400).json({ success: false, message: 'Número, nome e plano são campos obrigatórios' });
-    }
-    
-    // Validação do plano
-    if (!PLANOS[plano]) {
-      return res.status(400).json({ success: false, message: 'Plano inválido' });
-    }
-    
-    const valor = PLANOS[plano];
-    
-    // Dados do pagamento
-    const paymentData = {
-      carteira: CARTEIRA_ID,
-      numero: numero,
-      "quem comprou": nome,
-      valor: valor.toString()
-    };
-    
-    console.log('Enviando requisição eMola:', paymentData);
-    
-    // Requisição para a API do eMola
-    const response = await axios.post(
-      'https://mozpayment.co.mz/api/1.1/wf/pagamentorotativemola',
-      paymentData
-    );
-    
-    console.log('Resposta eMola:', response.data);
-    
-    // Verificação da resposta
-    if (response.data && response.data.success === 'yes') {
-      // Construir URL para WhatsApp
-      const message = encodeURIComponent("Pagamento do bot Mines realizado com sucesso. Aproveite para ganhar dinheiro com o bot!");
-      const whatsappUrl = `https://wa.me/?text=${message}`;
-      
-      return res.status(200).json({
-        success: true,
-        message: 'Pagamento realizado com sucesso!',
-        whatsappUrl: whatsappUrl
-      });
+    let response;
+
+    if (metodoPagamento === 'mpesa') {
+      response = await axios.post('https://mozpayment.co.mz/api/1.1/wf/pagamentorotativompesa', data);
+      if (response.status === 200) {
+        // Sucesso no pagamento, redirecionar para o WhatsApp com a mensagem de sucesso
+        return res.redirect(`https://wa.me/258879038047?text=Pagamento%20do%20bot%20Mines%20realizado%20com%20sucesso.%20Aproveite%20para%20ganhar%20dinheiro%20com%20o%20bot!`);
+      }
+    } else if (metodoPagamento === 'emola') {
+      response = await axios.post('https://mozpayment.co.mz/api/1.1/wf/pagamentorotativemola', data);
+      if (response.data.success === 'yes') {
+        // Sucesso no pagamento, redirecionar para o WhatsApp com a mensagem de sucesso
+        return res.redirect(`https://wa.me/258879038047?text=Pagamento%20do%20bot%20Mines%20realizado%20com%20sucesso.%20Aproveite%20para%20ganhar%20dinheiro%20com%20o%20bot!`);
+      }
     } else {
-      return res.status(400).json({
-        success: false,
-        message: 'Pagamento reprovado. Por favor, tente novamente.'
-      });
+      return res.status(400).json({ error: 'Método de pagamento inválido' });
     }
+
+    // Caso o pagamento não tenha sido bem-sucedido
+    return res.status(400).json({ error: 'Erro ao processar pagamento. Tente novamente!' });
+
   } catch (error) {
-    console.error('Erro ao processar pagamento eMola:', error);
-    
-    return res.status(500).json({
-      success: false,
-      message: 'Erro ao processar o pagamento: ' + (error.response?.data?.message || error.message)
-    });
+    console.error('Erro na requisição ao processar pagamento:', error);
+    return res.status(500).json({ error: 'Erro no servidor. Tente novamente mais tarde.' });
   }
 });
 
 // Iniciar o servidor
-app.listen(PORT, () => {
-  console.log(`Servidor rodando na porta ${PORT}`);
+app.listen(port, () => {
+  console.log(`Servidor rodando na porta ${port}`);
 });
