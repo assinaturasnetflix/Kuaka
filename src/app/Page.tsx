@@ -1,5 +1,5 @@
 'use client';
-
+import Image from 'next/image';
 import { useRef } from 'react';
 import LogoSection from '../components/LogoSection';
 import ResultsSection from '../components/ResultsSection';
